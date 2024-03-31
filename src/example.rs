@@ -181,6 +181,31 @@ bitfield! {
     }
 }
 
+bitfield! {
+    /// A bitfield showcasing how to specify bit ranges.
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    pub struct FieldFieldAccessorFunctions(pub u16): Debug, FromRaw, IntoRaw, DerefRaw {
+        // A single field without any accessor function.
+        pub no_accessor: u16 @ ..,
+
+        // A single field with a get accessor function.
+        // The function takes a `u16` as input, and returns a `u16`.
+        pub get_accessor: u16 [get_fn handle_on_get] @ ..,
+
+        // A single field with a set accessor function.
+        // The function takes a `u16` as input, and returns a `u16`.
+        pub set_accessor: u16 [set_fn handle_on_set] @ ..,
+
+        // A single field with a get and set accessor functions.
+        // The function takes a `u16` as input, and returns a `u16`.
+        pub get_set_accessors: u16 [get_fn handle_on_get, set_fn handle_on_set] @ ..,
+
+        // A single field with a get accessor function.
+        // The function taken a `NonZeroU8` as input, and returns a `NonZeroU8`.
+        pub get_accessor_with_ty: u16 [NonZeroU8, get_fn handle_on_get] @ ..
+    }
+}
+
 /// An enum showcasing the `ConvRaw` derive.
 #[derive(ConvRaw)]
 pub enum ConvRawExample {

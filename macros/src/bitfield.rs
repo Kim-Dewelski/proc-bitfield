@@ -6,7 +6,7 @@ use syn::{
     parse::{Parse, ParseStream, Result},
     punctuated::Punctuated,
     spanned::Spanned,
-    token, Attribute, Error, Generics, Ident, Token, Type, Visibility, WhereClause,
+    token, Attribute, Error, Expr, Generics, Ident, Token, Type, Visibility, WhereClause,
 };
 
 mod kw {
@@ -31,6 +31,9 @@ mod kw {
     syn::custom_keyword!(write_only);
     syn::custom_keyword!(wo);
 
+    syn::custom_keyword!(get_fn);
+    syn::custom_keyword!(set_fn);
+
     syn::custom_keyword!(Debug);
     syn::custom_keyword!(FromRaw);
     syn::custom_keyword!(IntoRaw);
@@ -53,6 +56,8 @@ struct Field {
     ty: Type,
     get_ty: AccessorKind,
     set_ty: AccessorKind,
+    get_fn: Option<Expr>,
+    set_fn: Option<Expr>,
     bits: Bits,
 }
 
@@ -147,6 +152,8 @@ impl Parse for Struct {
                 let ty = input.parse()?;
                 let mut get_ty = AccessorKind::None;
                 let mut set_ty = AccessorKind::None;
+                let mut get_fn: Option<Expr> = None;
+                let mut set_fn: Option<Expr> = None;
                 let lookahead = input.lookahead1();
                 if lookahead.peek(token::Bracket) {
                     let options_content;
@@ -173,7 +180,18 @@ impl Parse for Struct {
                             if matches!(&$other, AccessorKind::Disabled) {
                                 return Err(Error::new(
                                     $span,
-                                    concat!("Conflicting read_only and write_only specifiers"),
+                                    "Conflicting read_only and write_only specifiers",
+                                ));
+                            }
+                        };
+                    }
+
+                    macro_rules! check_function_wrapper_conflict {
+                        ($ident: ident, $span: expr) => {
+                            if $ident.is_some() {
+                                return Err(Error::new(
+                                    $span,
+                                    "Conflicting get or set wrapper functions",
                                 ));
                             }
                         };
@@ -258,6 +276,14 @@ impl Parse for Struct {
                             check_accessor_conflict!(get_ty, "write_only", set_ty, span);
                             get_ty = AccessorKind::Disabled;
                         }
+                        // Wrapper access functions
+                        else if let Ok(kw) = options_content.parse::<kw::get_fn>() {
+                            check_function_wrapper_conflict!(get_fn, kw.span);
+                            get_fn = Some(input.parse()?);
+                        } else if let Ok(kw) = options_content.parse::<kw::set_fn>() {
+                            check_function_wrapper_conflict!(set_fn, kw.span);
+                            set_fn = Some(input.parse()?);
+                        }
                         // Infallible conversion (without keywords)
                         else {
                             let ty: Type = options_content.parse()?;
@@ -280,6 +306,8 @@ impl Parse for Struct {
                     ty,
                     get_ty,
                     set_ty,
+                    get_fn,
+                    set_fn,
                     bits: input.parse()?,
                 })
             },
@@ -320,6 +348,8 @@ pub fn bitfield(input: TokenStream) -> TokenStream {
              ty: field_ty,
              get_ty,
              set_ty,
+             get_fn,
+             set_fn,
              bits,
          }| {
             let storage_ty_bits = quote! { {::core::mem::size_of::<#storage_ty>() << 3} };
@@ -410,7 +440,11 @@ pub fn bitfield(input: TokenStream) -> TokenStream {
                     #[allow(clippy::identity_op)]
                     #vis fn #ident(&self) -> #get_output_ty {
                         #get_value
-                        #calc_get_result
+                        let ret = #calc_get_result;
+                        #(
+                           let ret = (#get_fn)(ret); 
+                        )?
+                        ret
                     }
                 }
             } else {
@@ -535,6 +569,9 @@ pub fn bitfield(input: TokenStream) -> TokenStream {
                         self,
                         value: #set_with_input_ty,
                     ) -> #with_output_ty {
+                        #(
+                            let value = (#set_fn)(value);
+                        )?
                         let raw_result = Self(#with_value);
                         #with_ok
                     }
@@ -546,6 +583,9 @@ pub fn bitfield(input: TokenStream) -> TokenStream {
                         &mut self,
                         value: #set_with_input_ty,
                     ) -> #set_output_ty {
+                        #(
+                            let value = (#set_fn)(value);
+                        )?
                         #set_value;
                         #set_ok
                     }

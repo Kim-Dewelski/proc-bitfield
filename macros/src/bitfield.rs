@@ -279,10 +279,10 @@ impl Parse for Struct {
                         // Wrapper access functions
                         else if let Ok(kw) = options_content.parse::<kw::get_fn>() {
                             check_function_wrapper_conflict!(get_fn, kw.span);
-                            get_fn = Some(input.parse()?);
+                            get_fn = Some(options_content.parse()?);
                         } else if let Ok(kw) = options_content.parse::<kw::set_fn>() {
                             check_function_wrapper_conflict!(set_fn, kw.span);
-                            set_fn = Some(input.parse()?);
+                            set_fn = Some(options_content.parse()?);
                         }
                         // Infallible conversion (without keywords)
                         else {
@@ -434,6 +434,7 @@ pub fn bitfield(input: TokenStream) -> TokenStream {
                         }
                     }
                 };
+                let get_fn_expand = get_fn.as_ref().map(|get_fn| quote! { let ret = (#get_fn)(ret); });
                 quote! {
                     #(#attrs)*
                     #[inline]
@@ -441,9 +442,7 @@ pub fn bitfield(input: TokenStream) -> TokenStream {
                     #vis fn #ident(&self) -> #get_output_ty {
                         #get_value
                         let ret = #calc_get_result;
-                        #(
-                           let ret = (#get_fn)(ret); 
-                        )?
+                        #get_fn_expand
                         ret
                     }
                 }
@@ -559,7 +558,7 @@ pub fn bitfield(input: TokenStream) -> TokenStream {
                             ::set_bits::<0, #storage_ty_bits>(&mut self.0, #calc_set_with_value)
                     },
                 };
-
+                let set_fn_expand = set_fn.as_ref().map(|set_fn| quote! { let value = (#set_fn)(value); });
                 quote! {
                     #(#attrs)*
                     #[inline]
@@ -569,9 +568,7 @@ pub fn bitfield(input: TokenStream) -> TokenStream {
                         self,
                         value: #set_with_input_ty,
                     ) -> #with_output_ty {
-                        #(
-                            let value = (#set_fn)(value);
-                        )?
+                        #set_fn_expand
                         let raw_result = Self(#with_value);
                         #with_ok
                     }
@@ -583,9 +580,7 @@ pub fn bitfield(input: TokenStream) -> TokenStream {
                         &mut self,
                         value: #set_with_input_ty,
                     ) -> #set_output_ty {
-                        #(
-                            let value = (#set_fn)(value);
-                        )?
+                        #set_fn_expand
                         #set_value;
                         #set_ok
                     }

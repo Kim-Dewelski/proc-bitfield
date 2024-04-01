@@ -184,25 +184,25 @@ bitfield! {
 bitfield! {
     /// A bitfield showcasing how to specify bit ranges.
     #[derive(Clone, Copy, PartialEq, Eq)]
-    pub struct FieldFieldAccessorFunctions(pub u16): Debug, FromRaw, IntoRaw, DerefRaw {
+    pub struct FieldAccessorFunctions(pub u8): Debug, FromRaw, IntoRaw, DerefRaw {
         // A single field without any accessor function.
-        pub no_accessor: u16 @ ..,
+        pub no_accessor: u8 @ ..,
 
         // A single field with a get accessor function.
         // The function takes a `u16` as input, and returns a `u16`.
-        pub get_accessor: u16 [get_fn handle_on_get] @ ..,
+        pub get_accessor: u8 [get_fn handle_on_get] @ ..,
 
         // A single field with a set accessor function.
         // The function takes a `u16` as input, and returns a `u16`.
-        pub set_accessor: u16 [set_fn handle_on_set] @ ..,
+        pub set_accessor: u8 [set_fn handle_on_set] @ ..,
 
         // A single field with a get and set accessor functions.
         // The function takes a `u16` as input, and returns a `u16`.
-        pub get_set_accessors: u16 [get_fn handle_on_get, set_fn handle_on_set] @ ..,
+        pub get_set_accessors: u8 [get_fn handle_on_get, set_fn handle_on_set] @ ..,
 
         // A single field with a get accessor function.
         // The function taken a `NonZeroU8` as input, and returns a `NonZeroU8`.
-        pub get_accessor_with_ty: u16 [NonZeroU8, get_fn handle_on_get] @ ..
+        pub get_accessor_with_ty: u8 [try NonZeroU8, get_fn handle_on_get] @ ..
     }
 }
 

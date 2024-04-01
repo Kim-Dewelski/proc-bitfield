@@ -122,13 +122,13 @@ impl From<UnwrapBitsExample> for u8 {
     }
 }
 
-pub fn handle_on_get<T: Display>(value: T) -> T {
+pub fn handle_on_get<T>(value: T) -> T {
     // Does nothing here, but in a real program this would
     // occur when reading from a field
     value
 }
 
-pub fn handle_on_set<T: Display>(value: T) -> T {
+pub fn handle_on_set<T>(value: T) -> T {
     // Does nothing here, but in a real program this would
     // occur when writing to a field
     value

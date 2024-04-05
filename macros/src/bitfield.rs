@@ -67,10 +67,16 @@ enum AccessorKind {
         fn_: Expr,
         ty: Type,
     },
-    UnsafeConvTy(Type),
+    UnsafeConvTy {
+        ty: Type,
+        // NOTE: determines the safety of the accessor method on the bitfield.
+        safe: bool,
+    },
     UnsafeConvFn {
         fn_: Expr,
         ty: Type,
+        // NOTE: determines the safety of the accessor method on the bitfield.
+        safe: bool,
     },
     TryConvTy(Type),
     TryGetFn {
@@ -94,7 +100,8 @@ impl AccessorKind {
     fn is_unsafe(&self) -> bool {
         matches!(
             self,
-            AccessorKind::UnsafeConvTy(_) | AccessorKind::UnsafeConvFn { .. }
+            AccessorKind::UnsafeConvTy { safe: false, .. }
+                | AccessorKind::UnsafeConvFn { safe: false, .. }
         )
     }
 }
@@ -258,19 +265,35 @@ impl Parse for Struct {
                         // Unsafe conversions
                         else if let Ok(kw) = options_content.parse::<kw::unsafe_get>() {
                             check_conversion_ty_conflict!(get; kw.span);
-                            get = AccessorKind::UnsafeConvTy(options_content.parse()?);
+                            let safe = options_content.parse::<Token![!]>().is_ok();
+                            get = AccessorKind::UnsafeConvTy {
+                                safe,
+                                ty: options_content.parse()?,
+                            };
                         } else if let Ok(kw) = options_content.parse::<kw::unsafe_set>() {
                             check_conversion_ty_conflict!(set; kw.span);
-                            set = AccessorKind::UnsafeConvTy(options_content.parse()?);
+                            let safe = options_content.parse::<Token![!]>().is_ok();
+                            set = AccessorKind::UnsafeConvTy {
+                                safe,
+                                ty: options_content.parse()?,
+                            };
                         } else if let Ok(kw) = options_content.parse::<kw::unsafe_both>() {
                             check_conversion_ty_conflict!(get, set; kw.span);
+                            let safe = options_content.parse::<Token![!]>().is_ok();
                             let ty: Type = options_content.parse()?;
-                            get = AccessorKind::UnsafeConvTy(ty.clone());
-                            set = AccessorKind::UnsafeConvTy(ty);
+                            get = AccessorKind::UnsafeConvTy {
+                                safe,
+                                ty: ty.clone(),
+                            };
+                            set = AccessorKind::UnsafeConvTy { safe, ty };
                         } else if let Ok(kw) = options_content.parse::<Token![unsafe]>() {
                             check_conversion_ty_conflict!(get, set; kw.span);
+                            let safe = options_content.parse::<Token![!]>().is_ok();
                             let ty: Type = options_content.parse()?;
-                            get = AccessorKind::UnsafeConvTy(ty.clone());
+                            get = AccessorKind::UnsafeConvTy {
+                                safe,
+                                ty: ty.clone(),
+                            };
                             set = AccessorKind::ConvTy(ty);
                         }
                         // Fallible conversions
@@ -329,13 +352,15 @@ impl Parse for Struct {
                             let fn_ = parse_accessor_fn(&options_content)?;
                             let ty =
                                 parse_return_ty(&options_content)?.unwrap_or_else(|_| ty.clone());
-                            get = AccessorKind::UnsafeConvFn { fn_, ty };
+                            let safe = options_content.parse::<Token![!]>().is_ok();
+                            get = AccessorKind::UnsafeConvFn { fn_, ty, safe };
                         } else if let Ok(kw) = options_content.parse::<kw::unsafe_set_fn>() {
                             check_conversion_ty_conflict!(set; kw.span);
                             let fn_ = parse_accessor_fn(&options_content)?;
                             let ty = parse_parenthesized_ty(&options_content)?
                                 .unwrap_or_else(|_| ty.clone());
-                            set = AccessorKind::UnsafeConvFn { fn_, ty };
+                            let safe = options_content.parse::<Token![!]>().is_ok();
+                            set = AccessorKind::UnsafeConvFn { fn_, ty, safe };
                         }
                         // Fallible fn conversions
                         else if let Ok(kw) = options_content.parse::<kw::try_get_fn>() {
@@ -464,11 +489,13 @@ pub fn bitfield(input: TokenStream) -> TokenStream {
                         quote! { <#get_ty as ::core::convert::From<#field_ty>>::from(raw_result) },
                         quote! { #get_ty },
                     ),
-                    AccessorKind::UnsafeConvTy(get_ty) => (
+                    AccessorKind::UnsafeConvTy{ ty: get_ty, .. } => (
                         quote! {
-                            <#get_ty as ::proc_bitfield::UnsafeFrom<#field_ty>>::unsafe_from(
-                                raw_result,
-                            )
+                            unsafe {
+                                <#get_ty as ::proc_bitfield::UnsafeFrom<#field_ty>>::unsafe_from(
+                                    raw_result,
+                                )
+                            }
                         },
                         quote! { #get_ty },
                     ),
@@ -495,8 +522,8 @@ pub fn bitfield(input: TokenStream) -> TokenStream {
                         quote! { #fn_(raw_result) },
                         quote! { #ty },
                     ),
-                    AccessorKind::UnsafeConvFn { fn_, ty } => (
-                        quote! { #fn_(raw_result) },
+                    AccessorKind::UnsafeConvFn { fn_, ty, .. } => (
+                        quote! { unsafe { #fn_(raw_result) } },
                         quote! { #ty },
                     ),
 
@@ -587,9 +614,13 @@ pub fn bitfield(input: TokenStream) -> TokenStream {
                         quote! { raw_result },
                         quote! { Self },
                     ),
-                    AccessorKind::UnsafeConvTy(set_ty) => (
+                    AccessorKind::UnsafeConvTy {
+                        ty: set_ty, ..
+                    } => (
                         quote! {
-                            <#set_ty as ::proc_bitfield::UnsafeInto<#field_ty>>::unsafe_into(value)
+                            unsafe {
+                                <#set_ty as ::proc_bitfield::UnsafeInto<#field_ty>>::unsafe_into(value)
+                            }
                         },
                         set_ty,
                         quote! {},
@@ -637,8 +668,8 @@ pub fn bitfield(input: TokenStream) -> TokenStream {
                         quote! { raw_result },
                         quote! { Self },
                     ),
-                    AccessorKind::UnsafeConvFn { fn_, ty } => (
-                        quote! { #fn_(value) },
+                    AccessorKind::UnsafeConvFn { fn_, ty, .. } => (
+                        quote! { unsafe { #fn_(value) } },
                         ty,
                         quote! {},
                         quote! { () },

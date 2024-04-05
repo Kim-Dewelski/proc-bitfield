@@ -145,6 +145,28 @@ bitfield! {
         // Equivalent to:
         // pub unsafe_as_non_zero_u8: u8 [unsafe_get NonZeroU8, set NonZeroU8] @ 12..=15,
 
+        // Will:
+        // - Return a `NonZeroU8` on reads calling
+        //   `<NonZeroU8 as UnsafeFrom<u8>>::unsafe_from`
+        // - Take a `u8` for writes
+        pub unsafe_read_as_non_zero_u8_asserted: u8 [unsafe_get! NonZeroU8] @ 0..=3,
+
+        // Will:
+        // - Return a `u8` on reads
+        // - Take a `U16` for writes calling
+        //   `<U16 as UnsafeInto<u8>>::unsafe_into`
+        pub unsafe_write_as_u16_asserted: u8 [unsafe_set! U16] @ 4..=7,
+
+
+        // Will:
+        // - Return a `SpuriouslyFailingU8` on reads calling
+        //   `<SpuriouslyFailingU8 as UnsafeFrom<u8>>::unsafe_from`
+        // - Take a `SpuriouslyFailingU8` for writes calling
+        //   `<SpuriouslyFailingU8 as UnsafeInto<u8>>::unsafe_into`
+        pub unsafe_as_spuriously_failing: u8 [unsafe_both! SpuriouslyFailingU8] @ 8..=11,
+        // Equivalent to:
+        // pub unsafe_as_spuriously_failing_asserted: u8
+        //  [unsafe_get! SpuriouslyFailingU8, unsafe_set! SpuriouslyFailingU8] @ 8..=11,
 
         // Unsafe/unchecked conversion functions
 
@@ -163,6 +185,21 @@ bitfield! {
         pub unsafe_write_as_u16_fn: u8 [unsafe_set_fn U16::unsafe_into(U16)] @ 4..=7,
 
 
+        // Will:
+        // - Return a `NonZeroU8` on reads calling
+        //   `<NonZeroU8 as UnsafeFrom<u8>>::unsafe_from`
+        // - Take a `u8` for writes
+        pub unsafe_read_as_non_zero_u8_fn_asserted: u8 [
+            unsafe_get_fn! NonZeroU8::unsafe_from -> NonZeroU8
+        ] @ 0..=3,
+
+        // Will:
+        // - Return a `u8` on reads
+        // - Take a `U16` for writes calling
+        //   `<U16 as UnsafeInto<u8>>::unsafe_into`
+        pub unsafe_write_as_u16_fn_asserted: u8 [unsafe_set_fn! U16::unsafe_into(U16)] @ 4..=7,
+
+        
         // Fallible conversions
 
         // Will:
